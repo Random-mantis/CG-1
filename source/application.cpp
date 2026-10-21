@@ -404,15 +404,18 @@ void update(double time) {
 		anim_time += dt;
 	}
 
-	ImGui::Begin("Lab 1");
-	ImGui::Checkbox("Orthographic", &use_ortho);
-	ImGui::DragFloat3("Position", position, 0.01f);
-	ImGui::DragFloat3("Rotation", rotation, 0.01f);
-	ImGui::DragFloat3("Scale", scale_xyz, 0.01f, 0.01f, 10.0f);
-	ImGui::ColorEdit3("Color", ui_color);
-	ImGui::Checkbox("Animation", &anim_playing);
-	ImGui::SliderFloat("Anim speed", &anim_speed, 0.0f, 5.0f);
-	ImGui::SliderFloat("Anim radius", &anim_radius, 0.0f, 5.0f);
+	ImGui::SetNextWindowPos(ImVec2(16.0f, 16.0f), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(320.0f, 280.0f), ImGuiCond_FirstUseEver);
+	if (ImGui::Begin("Lab 1")) {
+		ImGui::Checkbox("Orthographic", &use_ortho);
+		ImGui::DragFloat3("Position", position, 0.01f);
+		ImGui::DragFloat3("Rotation", rotation, 0.01f);
+		ImGui::DragFloat3("Scale", scale_xyz, 0.01f, 0.01f, 10.0f);
+		ImGui::ColorEdit3("Color", ui_color);
+		ImGui::Checkbox("Animation", &anim_playing);
+		ImGui::SliderFloat("Anim speed", &anim_speed, 0.0f, 5.0f);
+		ImGui::SliderFloat("Anim radius", &anim_radius, 0.0f, 5.0f);
+	}
 	ImGui::End();
 
 	ImGuiIO& io = ImGui::GetIO();
@@ -501,6 +504,7 @@ void render(const graphics::internal::FrameData& fd) {
 	}
 
 	vkCmdEndRenderPass(fd.command_buffer); // Завершаем текущий рендер.
+	vkEndCommandBuffer(fd.command_buffer); // Завершаем запись в буфер
 
 }
 
