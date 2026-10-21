@@ -2,9 +2,13 @@
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inColor;
 layout(location = 0) out vec3 fragColor;
-layout(push_constant) uniform Push { mat4 mvp; } pc;
+
+layout(set = 0, binding = 0) uniform ObjectData {
+	mat4 mvp;
+	vec4 color;
+} obj;
 
 void main() {
-	gl_Position = pc.mvp * vec4(inPosition, 1.0);
-	fragColor = inColor;
+	gl_Position = obj.mvp * vec4(inPosition, 1.0);
+	fragColor = inColor * obj.color.rgb;
 }
