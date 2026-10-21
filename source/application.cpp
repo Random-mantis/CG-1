@@ -404,21 +404,6 @@ void update(double time) {
 		anim_time += dt;
 	}
 
-	ImGuiIO& io = ImGui::GetIO();
-	if (!io.WantCaptureMouse && io.MouseDown[0]){
-		const float dx = glm::radians(io.MouseDelta.x);
-		const float dy = glm::radians(io.MouseDelta.y);
-		rotation[1] += dx;
-		rotation[0] += dy;
-	}
-
-	if (!io.WantCaptureMouse && io.MouseWheel){
-		const float sc = io.MouseWheel > 0.0f ? 1.1f : 0.9f;
-		scale_xyz[0] *= sc;
-		scale_xyz[1] *= sc;
-		scale_xyz[2] *= sc;
-	}
-
 	ImGui::Begin("Lab 1");
 	ImGui::Checkbox("Orthographic", &use_ortho);
 	ImGui::DragFloat3("Position", position, 0.01f);
@@ -429,6 +414,19 @@ void update(double time) {
 	ImGui::SliderFloat("Anim speed", &anim_speed, 0.0f, 5.0f);
 	ImGui::SliderFloat("Anim radius", &anim_radius, 0.0f, 5.0f);
 	ImGui::End();
+
+	ImGuiIO& io = ImGui::GetIO();
+	if (!io.WantCaptureMouse && !ImGui::IsAnyItemActive() && io.MouseDown[0]) {
+		rotation[1] += glm::radians(io.MouseDelta.x);
+		rotation[0] += glm::radians(io.MouseDelta.y);
+	}
+
+	if (!io.WantCaptureMouse && !ImGui::IsAnyItemActive() && io.MouseWheel != 0.0f) {
+		const float sc = io.MouseWheel > 0.0f ? 1.1f : 0.9f;
+		scale_xyz[0] *= sc;
+		scale_xyz[1] *= sc;
+		scale_xyz[2] *= sc;
+	}
 
 	operator_matrix = make_model(position, rotation, scale_xyz, 0.0f);
 }
