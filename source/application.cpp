@@ -501,7 +501,6 @@ void render(const graphics::internal::FrameData& fd) {
 	}
 
 	vkCmdEndRenderPass(fd.command_buffer); // Завершаем текущий рендер.
-	vkEndCommandBuffer(fd.command_buffer); // Завершаем запись в буфер
 
 }
 
