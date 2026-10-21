@@ -463,7 +463,7 @@ bool initialize(GLFWwindow* const window) {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 		.imageType = VK_IMAGE_TYPE_2D,
 		.format = vk_depth_format,
-		.extent = { uint32_t(width), uint32_t(height), 1 },
+		.extent = { context.swapchain_extent.width, context.swapchain_extent.height, 1 },
 		.mipLevels = 1,
 		.arrayLayers = 1,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
@@ -567,8 +567,8 @@ bool initialize(GLFWwindow* const window) {
 		.renderPass = context.render_pass,
 		.attachmentCount = sizeof(framebuffer_attachments) / sizeof(framebuffer_attachments[0]),
 		.pAttachments = framebuffer_attachments,
-		.width = uint32_t(width),
-		.height = uint32_t(height),
+		.width = context.swapchain_extent.width,
+		.height = context.swapchain_extent.height,
 		.layers = 1,
 	};
 
