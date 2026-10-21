@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <string>
 #include <vector>
 #include <iostream>
 #include <fstream>
@@ -31,8 +32,8 @@ VmaAllocation uniform_allocations[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE};
 void* uniform_mapped[2] = {nullptr, nullptr};
 
 struct ObjectUniform {
-	glm::mat4 mvp;
-	glm::vec4 color;
+	alignas(16) glm::mat4 mvp;
+	alignas(16) glm::vec4 color;
 };
 
 bool use_ortho = false;
@@ -130,6 +131,14 @@ std::vector<unsigned char> read_file(const std::string& path){
 	return code;
 }
 
+std::vector<unsigned char> read_shader(const char* name) {
+	std::string a = std::string("shaders/") + name;
+	auto code = read_file(a);
+	if (!code.empty()) return code;
+	a = std::string("../shaders/") + name;
+	return read_file(a);
+}
+
 glm::mat4 make_model(float pos[3], float rot[3], float scl[3], float phase) {
 	glm::mat4 m(1.0f);
 	float ax = pos[0];
@@ -155,8 +164,8 @@ glm::mat4 make_model(float pos[3], float rot[3], float scl[3], float phase) {
 
 auto operator_matrix = glm::mat4(1.0f);
 bool initialize() {
-    const auto vertex_code = read_file(std::string("shaders/pyramide.vert.spv")); // Файл для позиции вершин
-    const auto fragment_code = read_file(std::string("shaders/pyramide.frag.spv")); // Файл для цвета вершин
+    const auto vertex_code = read_shader("pyramide.vert.spv"); // Файл для позиции вершин
+    const auto fragment_code = read_shader("pyramide.frag.spv"); // Файл для цвета вершин
 	if (vertex_code.empty() or fragment_code.empty()) return false;
 	auto& context = graphics::internal::context;
 
@@ -183,7 +192,7 @@ bool initialize() {
 	                   index_buffer, index_allocation)) return false; // Создание буфера индексов
 
 	for (int i = 0; i < 2; ++i) {
-		if (!create_buffer(sizeof(ObjectUniform), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, nullptr,
+		if (!create_buffer(256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, nullptr,
 		                   uniform_buffers[i], uniform_allocations[i], &uniform_mapped[i])) {
 			return false;
 		}
