@@ -103,6 +103,8 @@ if(GLSLC_FOUND)
 
 	compile_shader(pyramide.vert)
 	compile_shader(pyramide.frag)
+	compile_shader(unlit.vert)
+	compile_shader(unlit.frag)
 
 	add_custom_target(shaders DEPENDS ${_SHADER_BINARIES})
 	add_dependencies(${PROJECT_NAME} shaders)
