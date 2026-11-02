@@ -24,28 +24,28 @@ VmaAllocation vertex_allocation = VK_NULL_HANDLE; // Область памяти
 VkBuffer index_buffer = VK_NULL_HANDLE; // Индексация вершин пирамиды
 VmaAllocation index_allocation = VK_NULL_HANDLE; // Область памяти с индексацией вершин
 
-VkDescriptorSetLayout descriptor_set_layout = VK_NULL_HANDLE;
-VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
-VkDescriptorSet descriptor_sets[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE};
-VkBuffer uniform_buffers[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE};
-VmaAllocation uniform_allocations[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE};
+VkDescriptorSetLayout descriptor_set_layout = VK_NULL_HANDLE; // Настройки дескрипторов лейаутов
+VkDescriptorPool descriptor_pool = VK_NULL_HANDLE; // Инструменты для манипулирования дескрипторами
+VkDescriptorSet descriptor_sets[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE}; // Дескрипторы пирамид
+VkBuffer uniform_buffers[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE}; // Дескрипторы формы пирамиды
+VmaAllocation uniform_allocations[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE}; // Память для форм
 void* uniform_mapped[2] = {nullptr, nullptr};
 
 struct ObjectUniform {
-	alignas(16) glm::mat4 mvp;
-	alignas(16) glm::vec4 color;
+	alignas(16) glm::mat4 mvp; // Матрица положения
+	alignas(16) glm::vec4 color; // Цвета вершин
 };
 
 bool use_ortho = false;
-float position[3] = {0.0f, 0.0f, 0.0f};
-float rotation[3] = {0.0f, 0.0f, 0.0f};
-float scale_xyz[3] = {1.0f, 1.0f, 1.0f};
-float ui_color[3] = {1.0f, 1.0f, 1.0f};
-bool anim_playing = false;
-float anim_speed = 1.0f;
-float anim_radius = 1.5f;
-float anim_time = 0.0f;
-double last_time = 0.0;
+float position[3] = {0.0f, 0.0f, 0.0f}; // Позиция фигур
+float rotation[3] = {0.0f, 0.0f, 0.0f}; // Угол фигуры
+float scale_xyz[3] = {1.0f, 1.0f, 1.0f}; // Масштаб фигуры
+float ui_color[3] = {1.0f, 1.0f, 1.0f}; // Цвет интерфейса
+bool anim_playing = false; // Играть ли анимацию
+float anim_speed = 1.0f; // Скорость анимации
+float anim_radius = 1.5f; // Расстояния от 2-ух пирамид при анимации
+float anim_time = 0.0f; // Время анимации
+double last_time = 0.0; 
 
 struct Pyramide { // Структура пирамиды
 	struct Vertex { // Структура Вершины
@@ -139,7 +139,7 @@ std::vector<unsigned char> read_shader(const char* name) {
 	return read_file(a);
 }
 
-glm::mat4 make_model(float pos[3], float rot[3], float scl[3], float phase) {
+glm::mat4 make_model(float pos[3], float rot[3], float scl[3], float phase) { // Сделать анимации
 	glm::mat4 m(1.0f);
 	float ax = pos[0];
 	float ay = pos[1];
@@ -177,8 +177,8 @@ bool initialize() {
 
 	if (vkCreateShaderModule(context.device, &module_info, nullptr, &vertex_shader) != VK_SUCCESS) return false;
     // Создание шейдерного модуля 
-	module_info.codeSize = fragment_code.size();
-	module_info.pCode = reinterpret_cast<const std::uint32_t*>(fragment_code.data());
+	module_info.codeSize = fragment_code.size(); // Размер цвета
+	module_info.pCode = reinterpret_cast<const std::uint32_t*>(fragment_code.data()); // Данные с shader модуля
 	if (vkCreateShaderModule(context.device, &module_info, nullptr, &fragment_shader) != VK_SUCCESS) return false;
 
 	if (!create_buffer(pyramide.vertices.size() * sizeof(Pyramide::Vertex),
@@ -198,67 +198,67 @@ bool initialize() {
 		}
 	}
 
-	const VkDescriptorSetLayoutBinding dsl_binding{
-		.binding = 0,
-		.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-		.descriptorCount = 1,
-		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+	const VkDescriptorSetLayoutBinding dsl_binding{ // 1 слот внутри набора
+		.binding = 0, 
+		.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, // Тип дескриптора
+		.descriptorCount = 1, // Количество дескрипторов
+		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT, // Флаг состояния
 	};
-	const VkDescriptorSetLayoutCreateInfo dsl_info{
+	const VkDescriptorSetLayoutCreateInfo dsl_info{ // Схема лейаутов
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-		.bindingCount = 1,
-		.pBindings = &dsl_binding,
+		.bindingCount = 1, // Количество биндингов
+		.pBindings = &dsl_binding, // Биндинг
 	};
-	if (vkCreateDescriptorSetLayout(context.device, &dsl_info, nullptr, &descriptor_set_layout) != VK_SUCCESS) {
+	if (vkCreateDescriptorSetLayout(context.device, &dsl_info, nullptr, &descriptor_set_layout) != VK_SUCCESS) { // Создавать набор лейаутов
 		return false;
 	}
 
-	const VkDescriptorPoolSize pool_size{
+	const VkDescriptorPoolSize pool_size{ // Количество пулов с дескрипторами
 		.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-		.descriptorCount = 2,
+		.descriptorCount = 2, // Их количество
 	};
-	const VkDescriptorPoolCreateInfo pool_info{
+	const VkDescriptorPoolCreateInfo pool_info{ // Информация о пулов с дескрипторами
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-		.maxSets = 2,
-		.poolSizeCount = 1,
-		.pPoolSizes = &pool_size,
+		.maxSets = 2, // Максимальное количество пулов
+		.poolSizeCount = 1, // Количество размеров пулов
+		.pPoolSizes = &pool_size, // Сами пулы
 	};
 	if (vkCreateDescriptorPool(context.device, &pool_info, nullptr, &descriptor_pool) != VK_SUCCESS) {
 		return false;
 	}
 
 	VkDescriptorSetLayout layouts[2] = {descriptor_set_layout, descriptor_set_layout};
-	const VkDescriptorSetAllocateInfo alloc_info{
+	const VkDescriptorSetAllocateInfo alloc_info{ // Память для набора дескрипторов
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-		.descriptorPool = descriptor_pool,
-		.descriptorSetCount = 2,
-		.pSetLayouts = layouts,
+		.descriptorPool = descriptor_pool, // Сам пул
+		.descriptorSetCount = 2, // Количество наборов дескрипторов
+		.pSetLayouts = layouts, // Лейауты
 	};
 	if (vkAllocateDescriptorSets(context.device, &alloc_info, descriptor_sets) != VK_SUCCESS) {
 		return false;
 	}
 
 	for (int i = 0; i < 2; ++i) {
-		const VkDescriptorBufferInfo buffer_info{
-			.buffer = uniform_buffers[i],
-			.offset = 0,
-			.range = sizeof(ObjectUniform),
+		const VkDescriptorBufferInfo buffer_info{ // Привязывать пул дескрипторов к буферу
+			.buffer = uniform_buffers[i], // сам буфер
+			.offset = 0, // Смещение в буфере
+			.range = sizeof(ObjectUniform), // Размер шага буфера
 		};
-		const VkWriteDescriptorSet write{
+		const VkWriteDescriptorSet write{ // Запись в множеству
 			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			.dstSet = descriptor_sets[i],
-			.dstBinding = 0,
-			.descriptorCount = 1,
+			.dstSet = descriptor_sets[i], // Сама настройка дескрипторов
+			.dstBinding = 0, // Биндинги
+			.descriptorCount = 1, // Количество настроек дескрипторов
 			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-			.pBufferInfo = &buffer_info,
+			.pBufferInfo = &buffer_info, // Буфер
 		};
 		vkUpdateDescriptorSets(context.device, 1, &write, 0, nullptr);
 	}
 
 	const VkPipelineLayoutCreateInfo layout_info{ // Описание pipeline_layout
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, // Идентификатор структуры
-		.setLayoutCount = 1,
-		.pSetLayouts = &descriptor_set_layout,
+		.setLayoutCount = 1, // Количество лейаутов
+		.pSetLayouts = &descriptor_set_layout, // Настройки лейаутов
 	};
 
 	if (vkCreatePipelineLayout(context.device, &layout_info, nullptr, &pipeline_layout) != VK_SUCCESS) return false;
@@ -288,7 +288,7 @@ bool initialize() {
 
 	const VkVertexInputAttributeDescription attributes[]{ // Описание попадания байтов шага в шейдер
 		{
-			.location = 0, // Номер входа в шейдере
+			.location = 0, // Номер входа в шейдере 
 			.binding = 0, // Номер слота буфера
 			.format = VK_FORMAT_R32G32B32_SFLOAT, // Формат позицци (3 4-байтных float)
 			.offset = offsetof(Pyramide::Vertex, position), // Начало поля в структуре вершины
@@ -468,7 +468,8 @@ void render(const graphics::internal::FrameData& fd) {
 	if (use_ortho) {
 		const float h = 3.0f;
 		const float w = h * aspect;
-		projection = glm::orthoRH_ZO(-w, w, -h, h, 0.1f, 20.0f);
+		projection = glm::orthoRH_ZO(-w, w, -h, h, 0.1f, 20.0f); // Проекция
+		// Параметры -- координаты плоскостей границы смещения.
 	} else {
 		projection = glm::perspectiveRH_ZO(glm::radians(60.0f), aspect, 0.1f, 20.0f); // Создание матрицы перспективы
 		// Параметры 1) Угол обзора 2) масштабирующий аспект по окну 3) ближняя и дальняя плоскость отсечения
@@ -479,11 +480,11 @@ void render(const graphics::internal::FrameData& fd) {
 		glm::vec3(0.0f),
 		glm::vec3(0.0f, 1.0f, 0.0f));
 
-	const glm::mat4 models[2] = {
+	const glm::mat4 models[2] = { // Позиции фигур
 		make_model(position, rotation, scale_xyz, 0.0f),
 		make_model(position, rotation, scale_xyz, 3.14159265f),
 	};
-	const glm::vec4 colors[2] = {
+	const glm::vec4 colors[2] = { // Цвета
 		glm::vec4(ui_color[0], ui_color[1], ui_color[2], 1.0f),
 		glm::vec4(1.0f - ui_color[0], 1.0f - ui_color[1], 1.0f - ui_color[2], 1.0f),
 	};
@@ -494,13 +495,13 @@ void render(const graphics::internal::FrameData& fd) {
 	vkCmdBindIndexBuffer(fd.command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT16); // Вставляем буфер индексов в командный буфер
 
 	for (int i = 0; i < 2; ++i) {
-		ObjectUniform u{
+		ObjectUniform u{ // Фигуры
 			.mvp = projection * view * models[i],
 			.color = colors[i],
 		};
 		std::memcpy(uniform_mapped[i], &u, sizeof(u));
-		vkCmdBindDescriptorSets(fd.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &descriptor_sets[i], 0, nullptr);
-		vkCmdDrawIndexed(fd.command_buffer, static_cast<uint32_t>(pyramide.indices.size()), 1, 0, 0, 0); // Рисуем 1 пирамиду без смещения номеров вершин и экземпляра с первого индекса,    
+		vkCmdBindDescriptorSets(fd.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &descriptor_sets[i], 0, nullptr); // Создаём дескрипторы биндингов
+		vkCmdDrawIndexed(fd.command_buffer, static_cast<uint32_t>(pyramide.indices.size()), 1, 0, 0, 0); // Рисуем пирамиды без смещения номеров вершин и экземпляра с первого индекса,    
 	}
 
 	vkCmdEndRenderPass(fd.command_buffer); // Завершаем текущий рендер.
@@ -512,3 +513,6 @@ void render(const graphics::internal::FrameData& fd) {
 
 // Вид матрицы перспективы [[near 0 0 0], [0 near 0 0], [0 0  far far*near], [0 0 -1 0]]
 // Вид матрицы вращения [[], [], [], []]
+// bindings -- слоты, где находятся данные об изображениях.
+// Дескриптор -- указатель, по которому можно найти данные.
+// Ортографическая матрица [[], [], [], []]
