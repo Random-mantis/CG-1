@@ -64,7 +64,17 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 	GPUOpen::VulkanMemoryAllocator
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+target_include_directories(${PROJECT_NAME} PRIVATE
+	${imgui_SOURCE_DIR}
+	${imgui_SOURCE_DIR}/backends
+	${CMAKE_SOURCE_DIR}/third_party
+)
+
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy_directory
+		${CMAKE_SOURCE_DIR}/textures
+		$<TARGET_FILE_DIR:${PROJECT_NAME}>/textures
+)
 target_sources(${PROJECT_NAME} PRIVATE
 	${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
 	${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
