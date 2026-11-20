@@ -6,11 +6,14 @@
 #include "stb_image.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <imgui.h>
@@ -227,6 +230,7 @@ bool create_host_buffer(VkDeviceSize size, VkBufferUsageFlags usage, const void*
 	if (vmaCreateBuffer(context.allocator, &info, &alloc, &buffer, &allocation, &mapped) != VK_SUCCESS) return false;
 	if (data != nullptr) {
 		std::memcpy(mapped.pMappedData, data, static_cast<size_t>(size));
+		vmaFlushAllocation(context.allocator, allocation, 0, size);
 	}
 	if (mapped_out != nullptr) {
 		*mapped_out = mapped.pMappedData;
@@ -303,8 +307,10 @@ void destroy_texture(GpuTexture& tex) {
 	tex = {};
 }
 
-bool create_texture_rgba(const unsigned char* pixels, int width, int height, GpuTexture& out) {
+bool create_texture_rgba(const unsigned char* pixels, int width, int height, GpuTexture& out,
+	                     bool srgb = true) {
 	auto& context = graphics::internal::context;
+	const VkFormat format = srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM;
 	const VkDeviceSize size = VkDeviceSize(width) * VkDeviceSize(height) * 4;
 
 	VkBuffer staging = VK_NULL_HANDLE;
@@ -314,7 +320,7 @@ bool create_texture_rgba(const unsigned char* pixels, int width, int height, Gpu
 	const VkImageCreateInfo image_info{
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 		.imageType = VK_IMAGE_TYPE_2D,
-		.format = VK_FORMAT_R8G8B8A8_SRGB,
+		.format = format,
 		.extent = {uint32_t(width), uint32_t(height), 1},
 		.mipLevels = 1,
 		.arrayLayers = 1,
@@ -379,7 +385,7 @@ bool create_texture_rgba(const unsigned char* pixels, int width, int height, Gpu
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 		.image = out.image,
 		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.format = VK_FORMAT_R8G8B8A8_SRGB,
+		.format = format,
 		.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
 	};
 	if (vkCreateImageView(context.device, &view_info, nullptr, &out.view) != VK_SUCCESS) {
@@ -485,7 +491,7 @@ bool create_specular_from_luma(const unsigned char* rgba, int w, int h, GpuTextu
 		pixels[i * 4 + 2] = s;
 		pixels[i * 4 + 3] = 255;
 	}
-	return create_texture_rgba(pixels.data(), w, h, out);
+	return create_texture_rgba(pixels.data(), w, h, out, false);
 }
 
 bool create_emissive_perlin(int size, GpuTexture& out) {
@@ -638,6 +644,21 @@ bool create_materials() {
 	create_emissive_perlin(256, owl_emissive);
 	if (!add_material("Owl", owl_albedo, owl_spec, owl_emissive)) return false;
 
+	// These materials exercise loading independent raster images from disk. Their
+	// optional maps intentionally fall back to the shared black utility texture.
+	for (const auto& entry : std::array<std::pair<const char*, const char*>, 2>{{
+	         {"Stone", "stone.bmp"}, {"Fabric", "fabric.bmp"}}}) {
+		GpuTexture albedo{};
+		if (!load_texture_file(find_texture_path(entry.second), albedo)) {
+			std::fprintf(stderr, "Could not load texture '%s'\n", entry.second);
+			return false;
+		}
+		if (!add_material(entry.first, albedo, black_texture, black_texture)) {
+			destroy_texture(albedo);
+			return false;
+		}
+	}
+
 	GpuTexture checker{};
 	if (!create_checker_texture(256, checker)) return false;
 	if (!add_material("Checker", checker, black_texture, black_texture)) return false;
@@ -670,15 +691,22 @@ bool create_meshes() {
 	if (!create_mesh_gpu(floor_verts, floor_idx, floor_mesh)) return false;
 
 	const float hs = 0.12f;
-	const std::vector<VertexPNU> cube_verts = {
-		{{-hs,-hs,-hs},{0,0,-1},{0,0}}, {{hs,-hs,-hs},{0,0,-1},{1,0}}, {{hs,hs,-hs},{0,0,-1},{1,1}}, {{-hs,hs,-hs},{0,0,-1},{0,1}},
-		{{-hs,-hs, hs},{0,0, 1},{0,0}}, {{hs,-hs, hs},{0,0, 1},{1,0}}, {{hs,hs, hs},{0,0, 1},{1,1}}, {{-hs,hs, hs},{0,0, 1},{0,1}},
+	std::vector<VertexPNU> cube_verts;
+	std::vector<uint16_t> cube_idx;
+	const auto add_cube_face = [&](glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 d,
+	                               glm::vec3 normal) {
+		const uint16_t base = static_cast<uint16_t>(cube_verts.size());
+		cube_verts.insert(cube_verts.end(), {{a, normal, {0, 0}}, {b, normal, {1, 0}},
+		                                     {c, normal, {1, 1}}, {d, normal, {0, 1}}});
+		cube_idx.insert(cube_idx.end(), {base, uint16_t(base + 1), uint16_t(base + 2),
+		                                base, uint16_t(base + 2), uint16_t(base + 3)});
 	};
-	const std::vector<uint16_t> cube_idx = {
-		0,1,2, 0,2,3, 4,6,5, 4,7,6,
-		0,4,5, 0,5,1, 2,6,7, 2,7,3,
-		0,3,7, 0,7,4, 1,5,6, 1,6,2,
-	};
+	add_cube_face({-hs,-hs,-hs}, {hs,-hs,-hs}, {hs,hs,-hs}, {-hs,hs,-hs}, {0,0,-1});
+	add_cube_face({hs,-hs,hs}, {-hs,-hs,hs}, {-hs,hs,hs}, {hs,hs,hs}, {0,0,1});
+	add_cube_face({-hs,-hs,hs}, {-hs,-hs,-hs}, {-hs,hs,-hs}, {-hs,hs,hs}, {-1,0,0});
+	add_cube_face({hs,-hs,-hs}, {hs,-hs,hs}, {hs,hs,hs}, {hs,hs,-hs}, {1,0,0});
+	add_cube_face({-hs,hs,-hs}, {hs,hs,-hs}, {hs,hs,hs}, {-hs,hs,hs}, {0,1,0});
+	add_cube_face({-hs,-hs,hs}, {hs,-hs,hs}, {hs,-hs,-hs}, {-hs,-hs,-hs}, {0,-1,0});
 	if (!create_mesh_gpu(cube_verts, cube_idx, cube_mesh)) return false;
 
 	std::vector<VertexPNU> cone;
@@ -1041,12 +1069,22 @@ bool initialize() {
 	});
 	objects.push_back({
 		.mesh = &floor_mesh,
-		.material_index = 1,
+		.material_index = 3,
 		.pos = {0.0f, pyramide.y_base - 0.01f, 0.0f},
 		.rot = {0.0f, 0.0f, 0.0f},
 		.scale = {1.0f, 1.0f, 1.0f},
 		.tint = {1.0f, 1.0f, 1.0f},
 		.shininess = 16.0f,
+		.wave = false,
+	});
+	objects.push_back({
+		.mesh = &cube_mesh,
+		.material_index = 1,
+		.pos = {2.0f, 0.65f, 0.0f},
+		.rot = {0.25f, 0.45f, 0.0f},
+		.scale = {4.5f, 4.5f, 4.5f},
+		.tint = {1.0f, 1.0f, 1.0f},
+		.shininess = 24.0f,
 		.wave = false,
 	});
 
@@ -1261,11 +1299,16 @@ void render(const graphics::internal::FrameData& fd) {
 	scene.dir_color = glm::vec4(dir_color[0], dir_color[1], dir_color[2], dir_intensity);
 	scene.light_counts = glm::vec4(float(point_lights.size()), float(spot_lights.size()), 0.0f, 0.0f);
 	std::memcpy(scene_ubo_mapped, &scene, sizeof(scene));
+	vmaFlushAllocation(context.allocator, scene_ubo_alloc, 0, sizeof(scene));
 	if (!point_lights.empty()) {
-		std::memcpy(point_ssbo_mapped, point_lights.data(), point_lights.size() * sizeof(PointLightCPU));
+		const VkDeviceSize bytes = point_lights.size() * sizeof(PointLightCPU);
+		std::memcpy(point_ssbo_mapped, point_lights.data(), static_cast<size_t>(bytes));
+		vmaFlushAllocation(context.allocator, point_ssbo_alloc, 0, bytes);
 	}
 	if (!spot_lights.empty()) {
-		std::memcpy(spot_ssbo_mapped, spot_lights.data(), spot_lights.size() * sizeof(SpotLightCPU));
+		const VkDeviceSize bytes = spot_lights.size() * sizeof(SpotLightCPU);
+		std::memcpy(spot_ssbo_mapped, spot_lights.data(), static_cast<size_t>(bytes));
+		vmaFlushAllocation(context.allocator, spot_ssbo_alloc, 0, bytes);
 	}
 
 	for (int i = 0; i < int(objects.size()) && i < kMaxModels; ++i) {
@@ -1275,6 +1318,8 @@ void render(const graphics::internal::FrameData& fd) {
 		u.tint = glm::vec4(objects[i].tint[0], objects[i].tint[1], objects[i].tint[2], objects[i].shininess);
 		std::memcpy(static_cast<char*>(model_ubo_mapped) + i * model_ubo_align, &u, sizeof(u));
 	}
+	vmaFlushAllocation(context.allocator, model_ubo_alloc, 0,
+	                   VkDeviceSize(model_ubo_align) * std::min<size_t>(objects.size(), kMaxModels));
 
 	vkCmdBindPipeline(fd.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 	vkCmdBindDescriptorSets(fd.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &scene_set, 0, nullptr);

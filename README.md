@@ -58,6 +58,20 @@ Project root is where this README file resides. Otherwise, the
 code responsible for loading shaders or other resources from files will fail,
 because relative paths are used.
 
+## Texture lab scene
+
+The scene loads `owl.png`, `stone.bmp`, and `fabric.bmp` from `textures/` with
+`stb_image`. The ImGui **Texture** list selects a material independently for
+each object. The pyramid has animated, time-based multi-sampling enabled by
+default; its specular mask is derived from the owl image and its emissive map is
+generated from Perlin noise. Materials without optional maps use a black
+fallback texture. Vertex and index buffers are uploaded through staging buffers
+to device-local memory, and all lit objects share a dynamic uniform buffer.
+
+Use WASD and Q/E to move the camera, hold Shift to move faster, and drag with
+the left mouse button to look around. The object controls also expose transform,
+tint, shininess, material, and animated sampling parameters.
+
 ### Compiling shaders
 
 `CMakeLists.txt` has a build recipe for compiling shader files
